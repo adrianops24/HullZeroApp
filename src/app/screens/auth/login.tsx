@@ -20,8 +20,7 @@ import { router } from 'expo-router';
 import { Checkbox } from 'expo-checkbox';
 import { useDeviceSize } from '~/src/lib/hooks/useResponsiveValues';
 import { useAuthStore } from '~/src/store/auth/authStore';
-import { LoginRequest } from '~/src/types/auth';
-import { showSuccessToast } from '~/src/lib/hooks/useNotificated';
+import { showSuccessToast, showErrorToast } from '~/src/lib/hooks/useNotificated';
 import LoadingOverlay from '~/src/components/LoadingOverlay';
 type loginFormData = z.infer<typeof loginSchema>;
 
@@ -42,28 +41,38 @@ export default function LoginForm() {
     }
   });
 
-  const { login, loading, rememberedEmail } = useAuthStore();
+  const { login, loading, rememberedEmail, loadRememberedEmail } = useAuthStore();
+
+  useEffect(() => {
+    // Carregar email lembrado ao montar o componente
+    loadRememberedEmail();
+  }, [loadRememberedEmail]);
 
   useEffect(() => {
     if (rememberedEmail) {
       setValue('credentials.email', rememberedEmail);
+      setValue('terms.isRememberMeChecked', true);
     }
   }, [rememberedEmail, setValue]);
 
   const onSubmit = async (data: loginFormData) => {
     try {
-      const loginRequest: LoginRequest = {
-        email: data.credentials.email,
-        password: data.credentials.password
-      };
+      await login(
+        {
+          email: data.credentials.email,
+          password: data.credentials.password
+        },
+        { rememberMe: !!data.terms?.isRememberMeChecked }
+      );
 
-      await login(loginRequest, { rememberMe: !!data.terms?.isRememberMeChecked });
-      router.replace('/home');
       showSuccessToast('Login realizado com sucesso!');
-    } catch (error) {
-      console.log('Registration failed:', error);
+      router.replace('/dashboard');
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      showErrorToast(error.response?.data?.detail || 'Erro ao fazer login');
     }
   };
+
   const renderInput = (
     name: `credentials.${keyof loginFormData['credentials']}`,
     placeholder: string,
@@ -90,18 +99,7 @@ export default function LoginForm() {
             onBlur={onBlur}
             maxFontSizeMultiplier={1}
             value={value as string}
-            onChangeText={(text) => {
-              onChange(text);
-
-              if (name === 'credentials.email') {
-                const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
-                console.log(`Email ${isValidEmail ? 'válido' : 'inválido'}: ${text}`);
-              }
-              if (name === 'credentials.password') {
-                const isValidPassword = text.length >= 6;
-                console.log(`Senha ${isValidPassword ? 'válida' : 'inválida'}: ${text}`);
-              }
-            }}
+            onChangeText={onChange}
           />
           {options?.toggleVisibility && (
             <TouchableOpacity onPress={options.toggleVisibility} className="p-4">

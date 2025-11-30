@@ -24,7 +24,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NotificationsProvider>
         <Stack>
-          <Stack.Screen name="testsBody" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="auth" options={{ headerShown: false }} />
           <Stack.Screen name="splash" options={{ headerShown: false }} />
         </Stack>

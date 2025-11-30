@@ -1,191 +1,288 @@
 import { create } from 'zustand';
-import api from '~/src/services/api';
-import {
-  loginRequest,
-  registerRequest,
-  verifyToken,
-  saveToken,
-  saveUser,
-  logout,
-  loadSession,
-  saveRememberedEmail,
-  clearRememberedEmail,
-  setRememberMeFlag
-} from '~/src/services/auth';
-import { handleApiError } from '~/src/services/error';
-import { showErrorToast } from '~/src/lib/hooks/useNotificated';
-import { RegisterRequest, LoginRequest } from '~/src/types/auth';
-import { UserResponse } from '~/src/types/user';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios, { AxiosInstance } from 'axios';
+import { LoginRequest } from '~/src/types/auth';
 
-type LoginOptions = { rememberMe?: boolean };
-type RegisterOptions = { rememberMe?: boolean };
+// Constantes
+const TOKEN_KEY = 'hullzero_access_token';
+const REFRESH_TOKEN_KEY = 'hullzero_refresh_token';
+const USER_KEY = 'hullzero_user';
+const REMEMBER_EMAIL_KEY = 'hullzero_remember_email';
 
-interface AuthStore {
-  user: UserResponse | null;
+// Tipos
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  is_verified: boolean;
+  employee_id?: string;
+  department?: string;
+  position?: string;
+  roles: string[];
+}
+
+export interface PasswordChange {
+  current_password: string;
+  new_password: string;
+}
+
+interface AuthState {
+  user: User | null;
   token: string | null;
+  refreshToken: string | null;
   loading: boolean;
   error: string | null;
   rememberedEmail: string | null;
-  rememberMe: boolean;
-  login(loginData: LoginRequest, options?: LoginOptions): Promise<void>;
+
+  // Actions
+  login: (credentials: LoginRequest, options?: { rememberMe?: boolean }) => Promise<void>;
   logout: () => Promise<void>;
-  loadSession: () => Promise<void>;
-  register(registerData: RegisterRequest, options?: RegisterOptions): Promise<void>;
-  fetchUserProfile(): Promise<void>; // nova função
+  getCurrentUser: () => Promise<User | null>;
+  refreshAccessToken: () => Promise<string | null>;
+  changePassword: (data: PasswordChange) => Promise<void>;
+  isAuthenticated: () => boolean;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
+  loadRememberedEmail: () => Promise<void>;
+  setError: (error: string | null) => void;
 }
 
-export const useAuthStore = create<AuthStore>((set, get) => ({
-  user: null,
-  token: null,
-  loading: false,
-  error: null,
-  rememberedEmail: null,
-  rememberMe: false,
+// Cliente API
+const createApiClient = (): AxiosInstance => {
+  return axios.create({
+    baseURL: process.env.EXPO_PUBLIC_API_URL,
+    timeout: 10000
+  });
+};
 
-  login: async (loginData: LoginRequest, options?: { rememberMe?: boolean }) => {
-    set({ loading: true });
-    try {
-      const loginResponse = await loginRequest(loginData);
-      const user = await verifyToken(loginResponse.accessToken);
-      const { accessToken } = loginResponse;
-      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+export const useAuthStore = create<AuthState>((set, get) => {
+  const apiClient = createApiClient();
 
-      const rememberMe = options?.rememberMe ?? false;
-      set({ token: accessToken, user, loading: false, rememberMe });
+  // Configurar interceptor para adicionar token automaticamente
+  apiClient.interceptors.request.use(
+    async (config) => {
+      const token = get().token;
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
 
-      if (rememberMe) {
-        await saveToken(accessToken);
+  // Interceptor para renovar token em caso de 401
+  apiClient.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config;
 
-        if (user) {
-          await saveUser(user);
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true;
+
+        const newToken = await get().refreshAccessToken();
+        if (newToken) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return apiClient(originalRequest);
+        }
+      }
+
+      return Promise.reject(error);
+    }
+  );
+
+  return {
+    user: null,
+    token: null,
+    refreshToken: null,
+    loading: false,
+    error: null,
+    rememberedEmail: null,
+
+    login: async (credentials: LoginRequest, options?: { rememberMe?: boolean }) => {
+      set({ loading: true, error: null });
+
+      try {
+        const formData = new URLSearchParams();
+        formData.append('username', credentials.email);
+        formData.append('password', credentials.password);
+
+        const response = await apiClient.post<TokenResponse>('/api/auth/login', formData, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+
+        const { access_token, refresh_token } = response.data;
+
+        // Armazenar tokens
+        await AsyncStorage.setItem(TOKEN_KEY, access_token);
+        await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refresh_token);
+
+        // Armazenar email se "Lembrar-me" estiver marcado
+        if (options?.rememberMe) {
+          await AsyncStorage.setItem(REMEMBER_EMAIL_KEY, credentials.email);
+        } else {
+          await AsyncStorage.removeItem(REMEMBER_EMAIL_KEY);
         }
 
-        await setRememberMeFlag(true);
-        await clearRememberedEmail();
+        set({
+          token: access_token,
+          refreshToken: refresh_token,
+          loading: false
+        });
 
-        console.log('Login bem-sucedido', accessToken);
-        return;
+        // Buscar informações do usuário
+        await get().getCurrentUser();
+      } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || 'Erro ao fazer login';
+        set({ error: errorMessage, loading: false });
+        throw error;
       }
+    },
 
-      await setRememberMeFlag(false);
-      await saveRememberedEmail(loginData.email);
-    } catch (err) {
-      const errors = handleApiError(err, { summary: 'Erro ao realizar o login' });
-      errors.forEach((error) => {
-        showErrorToast(error);
-      });
-
-      set({ loading: false });
-      throw err;
-    }
-  },
-
-  register: async (registerData: RegisterRequest, options?: { rememberMe?: boolean }) => {
-    set({ loading: true });
-    try {
-      const user = await registerRequest(registerData);
-      const { credentials } = registerData;
-
-      const loginResponse = await loginRequest(credentials);
-      const { accessToken } = loginResponse;
-
-      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-
-      const rememberMe = options?.rememberMe ?? false;
-      set({ token: accessToken, user, loading: false, rememberMe });
-
-      if (rememberMe) {
-        await saveToken(accessToken);
-
-        if (user) {
-          await saveUser(user);
-        }
-
-        await setRememberMeFlag(true);
-        await clearRememberedEmail();
-
-        console.log('Cadastro realizado com sucesso', accessToken);
-        return;
+    logout: async () => {
+      try {
+        await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY]);
+        set({
+          user: null,
+          token: null,
+          refreshToken: null,
+          error: null
+        });
+      } catch (error) {
+        console.error('Erro ao fazer logout:', error);
       }
+    },
 
-      await setRememberMeFlag(false);
-      await saveRememberedEmail(credentials.email);
-    } catch (err) {
-      const errors = handleApiError(err, { summary: 'Erro ao realizar o cadastro' });
-      errors.forEach((error) => {
-        showErrorToast(error);
-      });
+    getCurrentUser: async () => {
+      try {
+        const token = get().token;
+        if (!token) return null;
 
-      set({ loading: false });
-      throw err;
-    }
-  },
+        const response = await apiClient.get<User>('/api/auth/me');
 
-  logout: async () => {
-    try {
-      await logout();
-      set({ token: null, user: null });
-    } catch (err) {
-      handleApiError(err, { summary: 'Erro ao realizar logout' });
-      set({ token: null, user: null });
-    }
-  },
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(response.data));
+        set({ user: response.data });
 
-  loadSession: async () => {
-    try {
-      const session = await loadSession();
-
-      if (session.token) {
-        api.defaults.headers.common['Authorization'] = `Bearer ${session.token}`;
-        set({ token: session.token, user: session.user, rememberMe: session.rememberMe, rememberedEmail: null });
-        console.log('Sessão restaurada', session.token, session.user);
-      } else {
-        set({ rememberedEmail: session.rememberedEmail, rememberMe: session.rememberMe });
-      }
-    } catch (err) {
-      handleApiError(err, { summary: 'Erro ao carregar a sessão' });
-      set({ token: null, user: null, rememberedEmail: null, rememberMe: false });
-    }
-  },
-
-  fetchUserProfile: async () => {
-    const { token } = get();
-
-    if (!token) {
-      console.warn('Token não encontrado para buscar perfil do usuário');
-      return;
-    }
-
-    set({ loading: true });
-
-    try {
-      // Chama o endpoint /auth/me
-      const response = await api.get<UserResponse>('/auth/me');
-      const user = response.data;
-      set({ user, loading: false });
-
-      // Salva o usuário atualizado se rememberMe estiver ativo
-      const { rememberMe } = get();
-      if (rememberMe && user) {
-        await saveUser(user);
-      }
-
-      console.log('Perfil do usuário atualizado:', user);
-    } catch (err) {
-      const errors = handleApiError(err, { summary: 'Erro ao buscar perfil do usuário' });
-      errors.forEach((error) => {
-        showErrorToast(error);
-      });
-
-      set({ loading: false });
-
-      const status = (err as any)?.response?.status;
-      if (status === 401 || status === 403) {
-        console.log('Token inválido, fazendo logout...');
+        return response.data;
+      } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
         await get().logout();
+        return null;
       }
+    },
 
-      throw err;
+    refreshAccessToken: async () => {
+      try {
+        const refreshToken = get().refreshToken;
+        if (!refreshToken) {
+          await get().logout();
+          return null;
+        }
+
+        const response = await apiClient.post<TokenResponse>('/api/auth/refresh', {
+          refresh_token: refreshToken
+        });
+
+        const { access_token, refresh_token: new_refresh_token } = response.data;
+
+        await AsyncStorage.setItem(TOKEN_KEY, access_token);
+        await AsyncStorage.setItem(REFRESH_TOKEN_KEY, new_refresh_token);
+
+        set({
+          token: access_token,
+          refreshToken: new_refresh_token
+        });
+
+        return access_token;
+      } catch (error) {
+        console.error('Erro ao renovar token:', error);
+        await get().logout();
+        return null;
+      }
+    },
+
+    changePassword: async (data: PasswordChange) => {
+      try {
+        await apiClient.post('/api/auth/change-password', data);
+      } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || 'Erro ao alterar senha';
+        throw new Error(errorMessage);
+      }
+    },
+
+    isAuthenticated: () => {
+      return !!get().token;
+    },
+
+    hasRole: (role: string) => {
+      const user = get().user;
+      if (!user) return false;
+      return user.roles.includes(role);
+    },
+
+    hasAnyRole: (roles: string[]) => {
+      const user = get().user;
+      if (!user) return false;
+      return roles.some((role) => user.roles.includes(role));
+    },
+
+    loadRememberedEmail: async () => {
+      try {
+        const email = await AsyncStorage.getItem(REMEMBER_EMAIL_KEY);
+        set({ rememberedEmail: email });
+      } catch (error) {
+        console.error('Erro ao carregar email lembrado:', error);
+      }
+    },
+
+    setError: (error: string | null) => {
+      set({ error });
     }
-  } // fim da função fetchUserProfile
-}));
+  };
+});
+
+// Função para carregar estado inicial do AsyncStorage
+export const initializeAuth = async () => {
+  try {
+    const [token, refreshToken, userStr, rememberedEmail] = await AsyncStorage.multiGet([
+      TOKEN_KEY,
+      REFRESH_TOKEN_KEY,
+      USER_KEY,
+      REMEMBER_EMAIL_KEY
+    ]);
+
+    const state = useAuthStore.getState();
+
+    if (token[1]) {
+      state.token = token[1];
+    }
+
+    if (refreshToken[1]) {
+      state.refreshToken = refreshToken[1];
+    }
+
+    if (userStr[1]) {
+      try {
+        state.user = JSON.parse(userStr[1]);
+      } catch (error) {
+        console.error('Erro ao parsear usuário:', error);
+      }
+    }
+
+    if (rememberedEmail[1]) {
+      state.rememberedEmail = rememberedEmail[1];
+    }
+  } catch (error) {
+    console.error('Erro ao inicializar autenticação:', error);
+  }
+};

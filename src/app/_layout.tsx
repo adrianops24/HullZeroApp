@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 import { Checkbox } from 'expo-checkbox';
 import { cssInterop } from 'nativewind';
 import PagerView from 'react-native-pager-view';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useAuthStore, initializeAuth } from '~/src/store/auth/authStore';
 
 cssInterop(PagerView, {
   className: 'style'
@@ -15,6 +17,17 @@ cssInterop(Checkbox, {
 });
 
 SplashScreen.preventAutoHideAsync();
+
+// Criar instância do QueryClient
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      retryDelay: 1000,
+      staleTime: 5 * 60 * 1000 // 5 minutos
+    }
+  }
+});
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -28,16 +41,23 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  useEffect(() => {
+    // Inicializar autenticação ao carregar o app
+    initializeAuth();
+  }, []);
+
   if (!fontsLoaded && !fontError) {
     return null;
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="screens" options={{ headerShown: false }} />
+    <QueryClientProvider client={queryClient}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="screens" options={{ headerShown: false }} />
 
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-    </Stack>
+        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+      </Stack>
+    </QueryClientProvider>
   );
 }

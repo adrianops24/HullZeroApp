@@ -4,6 +4,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        Transpetro: '#0066CC',
+        Petrobras: '#00A859',
+        AmareloPetrobras: '#FFC107',
         primario: '#FAC03B',
         secundario: '#ffffff',
         transparence: 'background: rgba(121, 121, 121, 0.4);'
