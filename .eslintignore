@@ -1,0 +1,17 @@
+# Arquivo: .eslintignore
+
+# Dependências
+node_modules/
+
+# Pastas de build e cache do Expo
+.expo/
+dist/
+
+# Pastas de build nativo
+ios/
+android/
+
+# Outros arquivos de configuração ou build
+babel.config.js
+metro.config.js
+tailwind.config.js

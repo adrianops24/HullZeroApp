@@ -1,0 +1,103 @@
+{
+  "name": "hullzero",
+  "version": "1.0.1",
+  "main": "expo-router/entry",
+  "preset": "jest-expo",
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "scripts": {
+    "test": "jest --watchAll",
+    "format": "eslint \"**/*.{js,jsx,ts,tsx,cjs}\" --fix && prettier \"**/*.{js,jsx,ts,tsx,cjs,json}\" --write",
+    "start": "expo start --dev-client",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "build:dev": "eas build --profile development",
+    "build:preview": "eas build --profile preview",
+    "build:prod": "eas build --profile production",
+    "prebuild": "expo prebuild",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "web": "expo start --web",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.0.0",
+    "@hookform/resolvers": "^5.1.1",
+    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-community/datetimepicker": "8.4.1",
+    "@react-native-community/hooks": "^100.1.0",
+    "@react-navigation/native": "^7.0.3",
+    "@supabase/supabase-js": "^2.38.4",
+    "axios": "^1.11.0",
+    "clsx": "^2.1.1",
+    "expo": "53.0.20",
+    "expo-blur": "~14.1.5",
+    "expo-build-properties": "~0.14.8",
+    "expo-checkbox": "~4.1.4",
+    "expo-constants": "~17.1.4",
+    "expo-dev-client": "~5.2.4",
+    "expo-dev-launcher": "^5.0.17",
+    "expo-font": "~13.3.1",
+    "expo-linking": "~7.1.7",
+    "expo-router": "~5.1.4",
+    "expo-secure-store": "~14.2.4",
+    "expo-splash-screen": "~0.30.10",
+    "expo-status-bar": "~2.2.3",
+    "expo-system-ui": "~5.0.10",
+    "expo-web-browser": "~14.2.0",
+    "lightningcss": "^1.30.1",
+    "nativewind": "latest",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-hook-form": "^7.60.0",
+    "react-native": "0.79.5",
+    "react-native-gesture-handler": "~2.24.0",
+    "react-native-mask-text": "^0.15.0",
+    "react-native-notificated": "^0.1.7",
+    "react-native-pager-view": "^6.7.1",
+    "react-native-paper": "^5.14.5",
+    "react-native-reanimated": "~3.17.4",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-svg": "15.11.2",
+    "react-native-vector-icons": "^10.3.0",
+    "react-native-web": "^0.20.0",
+    "toastify-react-native": "^7.2.3",
+    "zod": "^4.0.5",
+    "zustand": "^4.5.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.0",
+    "@faker-js/faker": "^10.1.0",
+    "@types/jest": "^30.0.0",
+    "@types/react": "~19.0.10",
+    "@typescript-eslint/eslint-plugin": "^8.34.1",
+    "@typescript-eslint/parser": "^8.34.1",
+    "ajv": "^8.12.0",
+    "eslint": "^9.25.1",
+    "eslint-config-expo": "^9.2.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-prettier": "^5.5.0",
+    "husky": "^9.1.7",
+    "jest": "~29.7.0",
+    "jest-expo": "~53.0.7",
+    "lint-staged": "^16.1.2",
+    "prettier": "^3.5.3",
+    "prettier-plugin-tailwindcss": "^0.5.11",
+    "react-native-svg-transformer": "^1.5.1",
+    "tailwindcss": "^3.4.0",
+    "typescript": "~5.8.3"
+  },
+  "private": true
+}

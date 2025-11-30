@@ -1,0 +1,43 @@
+appId: com.hackthon.ad.hullzero
+name: Onboarding Flow
+---
+- launchApp
+
+- waitForAnimationToEnd
+
+- assertVisible: "O jeito certo de descobrir o seu estilo único."
+- assertVisible:
+    id: "SkipPressable"
+- tapOn:
+    id: "Nextpager"
+
+- assertVisible: "Seu estilo, sua identidade, sua assinatura."
+- assertVisible:
+    id: "SkipPressable"
+- tapOn:
+    id: "Nextpager"
+
+- assertVisible: "Essenciar, o lugar certo para sua consultoria."
+- assertVisible:
+    id: "SkipPressable"
+- tapOn:
+    id: "Nextpager"
+
+- assertVisible: "Essenciar"
+- assertVisible: "Sua consultoria de moda personalizada!"
+- tapOn:
+    id: "login"        
+
+
+- launchApp
+
+- waitForAnimationToEnd
+
+- assertVisible: "O jeito certo de descobrir o seu estilo único."
+- tapOn:
+    id: "SkipPressable"
+
+- assertVisible: "Essenciar"
+- assertVisible: "Sua consultoria de moda personalizada!"
+- tapOn:
+    id: "cadastre-se"  
